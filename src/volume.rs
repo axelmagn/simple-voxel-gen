@@ -1,9 +1,12 @@
-struct VolumeBounds(usize, usize, usize);
-struct VolumeIdx(usize, usize, usize);
+use std::fs::File;
+use std::io;
+
+pub struct VolumeBounds(usize, usize, usize);
+pub struct VolumeIdx(usize, usize, usize);
 
 
 /// A Volume 
-pub trait Volume<T> {
+pub trait Volume<T> where T: Sized {
     fn get_bounds(&self) -> VolumeBounds;
 
     /// Return Some(T) for an index, or None if it's out of bounds
@@ -11,15 +14,14 @@ pub trait Volume<T> {
 }
 
 
-#[derive(Debug)]
-pub struct VolumeCursor<T> {
-    volume: Volume<T>,
+pub struct VolumeCursor<'a, T> where T: Sized {
+    volume: &'a (Volume<T> + 'static),
     cursor: VolumeIdx,
 }
 
 
-impl<T> VolumeCursor<T> {
-    pub fn new(volume: Volume<T>) -> Self {
+impl<'a, T> VolumeCursor<'a, T> where T: Sized {
+    pub fn new(volume: &'a Volume<T>) -> VolumeCursor<'a, T> {
         VolumeCursor {
             volume: volume,
             cursor: VolumeIdx(0, 0, 0),
@@ -28,11 +30,11 @@ impl<T> VolumeCursor<T> {
 }
 
 
-impl<T> Iterator for VolumeCursor<T> {
+impl<'a, T> Iterator for VolumeCursor<'a, T> {
     type Item = T;
 
     fn next(&mut self) -> Option<T> {
-        let VolumeBounds(bx, by, bz) = self.get_bounds();
+        let VolumeBounds(bx, by, bz) = self.volume.get_bounds();
         let VolumeIdx(mut cx, mut cy, mut cz) = self.cursor;
 
         cx += 1;
@@ -54,7 +56,6 @@ impl<T> Iterator for VolumeCursor<T> {
 
 
 /// A simple volume generator for testing
-#[derive(Debug)]
 pub struct CornerCube {
     bounds: VolumeBounds,
     corner: VolumeIdx,
@@ -67,9 +68,9 @@ impl Volume<f64> for CornerCube {
         self.bounds
     }
 
-    fn get(&self, idx: VolumeIdx) -> f64 {
+    fn get(&self, idx: VolumeIdx) -> Option<f64> {
         let VolumeIdx(ix, iy, iz) = idx;
         let VolumeIdx(cx, cy, cz) = self.corner;
-        if ix < cx && iy < cy && iz < cz { self.val } else { 0.0 }
+        if ix < cx && iy < cy && iz < cz { Some(self.val) } else { Some(0.0) }
     }
 }
